@@ -6,9 +6,9 @@
 
 <img src="https://skillicons.dev/icons?i=arduino" title="Arduino IDE" height="50" />
 <img src="https://skillicons.dev/icons?i=cpp" title="C++" height="50" />
+<img src="https://skillicons.dev/icons?i=cs" title="C#" height="50" />
+<img src="https://skillicons.dev/icons?i=dotnet" title=".NET" height="50" />
 <img src="https://skillicons.dev/icons?i=python" title="Python" height="50" />
-<img src="https://skillicons.dev/icons?i=github" title="GitHub" height="50" />
-<img src="https://skillicons.dev/icons?i=telegram" title="Telegram" height="50" />
 
 </div>
 
