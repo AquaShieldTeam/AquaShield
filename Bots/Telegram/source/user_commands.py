@@ -28,6 +28,7 @@ async def help(message: Message, state: FSMContext):
     help_txt = '''
     /add - подключение хаба или датчика.
 /settings - настройка конкретного датчика.
+/delete - удаление датчика или хаба со всеми подключёнными к нему датчиками (не протестировано)
     '''
     current_state = await state.get_state()
     if current_state == WorkStates.start.state:
