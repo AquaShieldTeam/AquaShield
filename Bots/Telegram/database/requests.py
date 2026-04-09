@@ -140,23 +140,36 @@ async def change_sensor(hub_id: int,
                      shutoff: bool = None):
     async with async_session() as session:
 
-        sensor = await get_sensor(hub_id, ind)
+        sensor = await session.scalar(
+            select(Sensor).where(
+                Sensor.hub_id == hub_id,
+                Sensor.id == ind
+            )
+        )
+
+        print(f"""
+            new location: {location}
+            new notifications: {notifications}
+            new shutoff: {shutoff}    
+        """)
 
         if not sensor:
             raise ValueError("Датчик не найден")
 
-        if location:
+        if location is not None:
             sensor.location = location
-        if water_threshold:
+        if water_threshold is not None:
             sensor.water_threshold = water_threshold
-        if battery_threshold:
+        if battery_threshold is not None:
             sensor.battery_threshold = battery_threshold
-        if work_mode:
+        if work_mode is not None:
             sensor.work_mode = work_mode
-        if notifications:
+        if notifications is not None:
             sensor.notifications = notifications
-        if shutoff:
+        if shutoff is not None:
             sensor.shutoff = shutoff
+
+        await session.commit()
 
 async def delete_sensor(hub_id: int, ind: int ) -> bool:
     async with async_session() as session:
