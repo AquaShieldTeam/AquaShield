@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
-from source.stations import ConnectHub, ConnectSensor, WorkStates
+from source.stations import WorkStates, ConnectDevice
 from database.utils import get_sensor_settings
 import source.keyboards as kb
 import database.requests as rq
@@ -20,19 +20,20 @@ async def add(message: Message, state: FSMContext):
     print(f"current state: {current_state}, hub_id: {hub_id}")
 
     if current_state == WorkStates.ready.state:
+        await state.set_state(ConnectDevice.wait_device_type)
         await message.answer("Что именно вы хотите подключить?", reply_markup=await kb.choose_device_type())
     else:
-        await state.set_state(ConnectHub.wait_hub_id)
+        await state.set_state(ConnectDevice.wait_hub_id)
         await message.answer("Отправьте текстом в чат серийный номер вашего хаба. Он находится внутри коробки. Будьте внимательны при вводе серийного номера.")
 
 
-@router.callback_query(F.data.in_(["sensor", "hub"]))
+@router.callback_query(ConnectDevice.wait_device_type, F.data.in_(["sensor", "hub"]))
 async def chose_device(callback: CallbackQuery, state: FSMContext):
     await callback.answer("")
 
     if callback.data == "hub":
         msg = "Вы выбрали подключение <b>хаба</b>. Отправьте текстом в чат его серийный номер. Он находится внутри коробки."
-        await state.set_state(ConnectHub.wait_hub_id)
+        await state.set_state(ConnectDevice.wait_hub_id)
     else:
         data = await state.get_data()
         hub_id = data.get('hub_id')
@@ -40,7 +41,7 @@ async def chose_device(callback: CallbackQuery, state: FSMContext):
         if hub_id < 0:
             msg = "Не получилось получить данные о хабе, к которому необходимо подключить датчик."
         else:
-            await state.set_state(ConnectSensor.wait_sensor_id)
+            await state.set_state(ConnectDevice.wait_sensor_id)
             await state.update_data(data)
             msg = """Вы выбрали подключение <b>датчика</b>. 
        Чтобы добавить датчик, сначала подключите его к хабу. Для этого необходимо зажать кнопку на корпусе датчика и подождать мигания светодиода на хабе.
@@ -49,7 +50,7 @@ async def chose_device(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(msg, parse_mode=ParseMode.HTML)
 
 
-@router.message(ConnectHub.wait_hub_id, F.text.isdigit())
+@router.message(ConnectDevice.wait_hub_id, F.text.isdigit())
 async def connect_hub(message: Message, state: FSMContext):
     try:
         hub_id = int(message.text)
@@ -78,67 +79,67 @@ async def connect_hub(message: Message, state: FSMContext):
         await message.answer(f"Ошибка: {e}. \nВведите заново серийный номер.")
 
 
-@router.message(ConnectSensor.wait_sensor_id, F.text.isdigit())
+@router.message(ConnectDevice.wait_sensor_id, F.text.isdigit())
 async def got_sensor_id(message: Message, state: FSMContext):
     await state.update_data(sensor_id=int(message.text))
-    await state.set_state(ConnectSensor.wait_location)
+    await state.set_state(ConnectDevice.wait_location)
     await message.answer("Введите название или расположение датчика (например, «Кухня», «Ванная») <b>не более 64 символов</b>:",
                          parse_mode=ParseMode.HTML)
 
 
-@router.message(ConnectSensor.wait_location)
+@router.message(ConnectDevice.wait_location)
 async def got_location(message: Message, state: FSMContext):
     if len(message.text) < 65:
         await state.update_data(location=message.text)
-        await state.set_state(ConnectSensor.wait_water_threshold)
+        await state.set_state(ConnectDevice.wait_water_threshold)
         await message.answer("[временно] Введите порог срабатывания по воде (только число):")
     else:
         await message.answer("Слишком длинное название! Попробуйте ещё раз")
 
 
-@router.message(ConnectSensor.wait_water_threshold, F.text.regexp(r'^\d+(\.\d+)?$'))
+@router.message(ConnectDevice.wait_water_threshold, F.text.regexp(r'^\d+(\.\d+)?$'))
 async def got_water_threshold(message: Message, state: FSMContext):
     await state.update_data(water_threshold=int(message.text))
-    await state.set_state(ConnectSensor.wait_battery_threshold)
+    await state.set_state(ConnectDevice.wait_battery_threshold)
     await message.answer("Выберите порог, при котором будете получать уведомление о низком заряде:",
                          reply_markup=await kb.battery_threshold_menu())
 
 
-@router.message(ConnectSensor.wait_water_threshold)
+@router.message(ConnectDevice.wait_water_threshold)
 async def invalid_water_threshold(message: Message):
     await message.answer("Пожалуйста, введите число (можно с десятичной точкой).")
 
 
-@router.callback_query(ConnectSensor.wait_battery_threshold, F.data.in_(["half", "fifth_part"]))
+@router.callback_query(ConnectDevice.wait_battery_threshold, F.data.in_(["half", "fifth_part"]))
 async def got_battery_threshold(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     convert = {"half": True, "fifth_part": False}
     await state.update_data(battery_threshold=convert[callback.data])
-    await state.set_state(ConnectSensor.wait_notifications)
+    await state.set_state(ConnectDevice.wait_notifications)
     await callback.message.edit_text(
         "Выберите тип уведомлений:",
         reply_markup=await kb.alert_menu()
     )
 
 
-@router.message(ConnectSensor.wait_battery_threshold)
+@router.message(ConnectDevice.wait_battery_threshold)
 async def invalid_battery_threshold(message: Message):
     await message.answer("Пожалуйста, введите число.")
 
 
-@router.callback_query(ConnectSensor.wait_notifications, F.data.in_(["just_chat", "just_sound", "both"]))
+@router.callback_query(ConnectDevice.wait_notifications, F.data.in_(["just_chat", "just_sound", "both"]))
 async def got_notifications(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     convert = {"just_chat": 0, "just_sound": 1, "both": 2}
     await state.update_data(notifications=convert[callback.data])
-    await state.set_state(ConnectSensor.wait_shutoff)
+    await state.set_state(ConnectDevice.wait_shutoff)
     await callback.message.edit_text(
         "Разрешить датчику перекрывать воду?",
         reply_markup=await kb.overlap_menu()
     )
 
 
-@router.callback_query(ConnectSensor.wait_shutoff, F.data.in_(["overlap_on", "overlap_off"]))
+@router.callback_query(ConnectDevice.wait_shutoff, F.data.in_(["overlap_on", "overlap_off"]))
 async def got_shutoff(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     convert = {"overlap_on": True, "overlap_off": False}
@@ -150,7 +151,7 @@ async def got_shutoff(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Подтвердите применение настроек:", reply_markup=await kb.confirm_menu())
 
 
-@router.callback_query(ConnectSensor.wait_shutoff, F.data.in_(["confirm", "cancellation"]))
+@router.callback_query(ConnectDevice.wait_shutoff, F.data.in_(["confirm", "cancellation"]))
 async def connect_sensor(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
