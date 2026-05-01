@@ -1,0 +1,6 @@
+@VkLeakBot_HostAddress = http://localhost:5100
+
+GET {{VkLeakBot_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

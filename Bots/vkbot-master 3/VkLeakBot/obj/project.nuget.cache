@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "oiOUrRa1cGY=",
+  "success": true,
+  "projectFilePath": "/Users/ilavalentinov/Downloads/vkbot-master 3/VkLeakBot/VkLeakBot.csproj",
+  "expectedPackageFiles": [
+    "/Users/ilavalentinov/.nuget/packages/microsoft.aspnetcore.openapi/10.0.3/microsoft.aspnetcore.openapi.10.0.3.nupkg.sha512",
+    "/Users/ilavalentinov/.nuget/packages/microsoft.openapi/2.0.0/microsoft.openapi.2.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
