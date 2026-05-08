@@ -50,43 +50,6 @@ async def add_vk(hub_id: int, vk_id):
         hub.vk_id = vk_id
         await session.commit()
 
-async def get_tg(hub_id):
-    async with async_session() as session:
-        hub = await session.get(Hub, hub_id)
-
-        if not hub:
-            return None
-
-        return hub.tg_id
-
-async def get_hubs(tg_id=None, vk_id=None) -> list[int]:
-    async with async_session() as session:
-        if tg_id:
-            raw_hubs = await session.scalars(
-                select(Hub)
-                .where(Hub.tg_id == tg_id)
-                .order_by(Hub.id)
-            )
-        if vk_id and len(raw_hubs) == 0:
-            raw_hubs = await session.scalars(
-                select(Hub)
-                .where(Hub.vk_id == vk_id)
-                .order_by(Hub.id)
-            )
-
-        if len(raw_hubs) == 0: return []
-
-        return [hub.id for hub in raw_hubs]
-
-async def get_vk(hub_id):
-    async with async_session() as session:
-        hub = await session.get(Hub, hub_id)
-
-        if not hub:
-            return None
-
-        return hub.vk_id
-
 async def add_sensor(hub_id: int,
                      id: int,
                      location: str = "",
@@ -117,7 +80,7 @@ async def add_sensor(hub_id: int,
 
         await session.commit()
 
-async def get_sensors(hub_id):
+async def get_sensors(hub_id) -> list[Sensor]:
     async with async_session() as session:
 
         sensors = await session.scalars(
@@ -131,6 +94,41 @@ async def get_sensors(hub_id):
 async def get_sensor(hub_id, sensor_id):
     async with async_session() as session:
         return await session.get(Sensor, (hub_id, sensor_id))
+
+async def get_tg(hub_id):
+    async with async_session() as session:
+        hub = await session.get(Hub, hub_id)
+
+        if not hub:
+            return None
+
+        return hub.tg_id
+
+async def get_hubs(tg_id=None, vk_id=None) -> list[int]:
+    async with async_session() as session:
+        if tg_id:
+            raw_hubs = await session.scalars(
+                select(Hub.id)
+                .where(Hub.tg_id == tg_id)
+                .order_by(Hub.id)
+            )
+        if vk_id or (vk_id is not None and len(raw_hubs.all()) == 0):
+            raw_hubs = await session.scalars(
+                select(Hub.id)
+                .where(Hub.vk_id == vk_id)
+                .order_by(Hub.id)
+            )
+
+        return raw_hubs.all()
+
+async def get_vk(hub_id):
+    async with async_session() as session:
+        hub = await session.get(Hub, hub_id)
+
+        if not hub:
+            return None
+
+        return hub.vk_id
 
 async def change_sensor(hub_id: int,
                      ind: int,
@@ -201,6 +199,6 @@ async def disconnect_hub(hub_id: int) -> bool:
             delete(Sensor)
             .where(Sensor.hub_id == hub_id)
         )
-        
+
         await session.commit()
         return result
