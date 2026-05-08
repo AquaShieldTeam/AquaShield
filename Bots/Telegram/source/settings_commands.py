@@ -33,7 +33,7 @@ async def selected_sensor(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     hub_id = data.get('hub_id')
 
-    msg = await get_sensor_settings(hub_id, int(sensor_id))
+    msg = await get_sensor_settings(hub_id=hub_id, sensor_id=int(sensor_id))
     msg = "Текущие н" + msg[1:]
     await callback.message.edit_text(msg, parse_mode=ParseMode.HTML)
     await callback.message.answer("Что хотите изменить?", reply_markup=await kb.settings_menu())
@@ -52,7 +52,7 @@ async def selected_settings(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("Изменение режима уведомлений:", reply_markup=await kb.alert_menu())
         await state.set_state(ChangeSettings.wait_alert)
     elif ( callback.data == "overlap"):
-        await callback.message.edit_text("Изменение прав на перекрытие:", reply_markup=await kb.overlap_menu())
+        await callback.message.edit_text("Разрешить датчику перекрывать воду?", reply_markup=await kb.overlap_menu())
         await state.set_state(ChangeSettings.wait_overlap)
     else:
         await callback.message.edit_text("Введите новое положение датчика: ", reply_markup=None)
@@ -104,7 +104,7 @@ async def show_confirmation(message: Message, state: FSMContext):
     msg += f"Порог воды: <code>{sensor.water_threshold}</code>\n"
     msg += f"Порог батареи: <code>{'50%' if sensor.battery_threshold else '20%'}</code>\n"
     msg += f"Уведомления: <code>{['Только чат', 'Только звук', 'Чат и звук'][new_notifications]}</code>\n"
-    msg += f"Перекрытие воды: <code>{'Разрешено' if new_shutoff else 'Запрещено'}</code>\n"
+    msg += f"Перекрытие воды: <code>{'Да' if new_shutoff else 'Нет'}</code>\n"
     await message.edit_text(msg, parse_mode=ParseMode.HTML)
     await message.answer("Подтвердите применение настроек:", reply_markup=await kb.confirm_menu())
 
@@ -123,7 +123,7 @@ async def confirm_new_message(message: Message, state: FSMContext):
     msg += f"Порог воды: <code>{sensor.water_threshold}</code>\n"
     msg += f"Порог батареи: <code>{'50%' if sensor.battery_threshold else '20%'}</code>\n"
     msg += f"Уведомления: <code>{['Только чат', 'Только звук', 'Чат и звук'][new_notifications]}</code>\n"
-    msg += f"Перекрытие воды: <code>{'Разрешено' if new_shutoff else 'Запрещено'}</code>\n"
+    msg += f"Перекрытие воды: <code>{'Да' if new_shutoff else 'Нет'}</code>\n"
     await message.answer(msg, parse_mode=ParseMode.HTML)
     await message.answer("Подтвердите применение настроек:", reply_markup=await kb.confirm_menu())
 
