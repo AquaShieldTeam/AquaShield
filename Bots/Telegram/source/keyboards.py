@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database.requests import get_sensors
+from database.requests import get_sensors, get_hubs
 
 async def choose_device_type():
     keyboard = InlineKeyboardBuilder()
@@ -14,7 +14,6 @@ async def settings_menu():
     keyboard.add(InlineKeyboardButton(text="Уведомления", callback_data="alert"))
     keyboard.add(InlineKeyboardButton(text="Режим перекрытия", callback_data="overlap"))
     keyboard.add(InlineKeyboardButton(text="Место размещения", callback_data="location"))
-    #keyboard.add(InlineKeyboardButton(text="", callback_data="overlap"))
 
     return keyboard.adjust(1).as_markup()
 
@@ -53,6 +52,34 @@ async def choose_sensor(hub_id, page=0, page_size=4):
         keyboard.row(*navigation_buttons)
 
     return keyboard.adjust(1).as_markup()
+
+
+async def text_navigation_keyboard(current_index: int, total_count: int):
+    keyboard = InlineKeyboardBuilder()
+
+    navigation_buttons = []
+
+    if current_index > 0:
+        navigation_buttons.append(InlineKeyboardButton(
+            text="⬅️ Назад",
+            callback_data=f"textnav_prev_{current_index - 1}"
+        ))
+
+    navigation_buttons.append(InlineKeyboardButton(
+        text=f"{current_index + 1}/{total_count}",
+        callback_data="textnav_info"
+    ))
+
+    if current_index < total_count - 1:
+        navigation_buttons.append(InlineKeyboardButton(
+            text="Вперед ➡️",
+            callback_data=f"textnav_next_{current_index + 1}"
+        ))
+
+    if navigation_buttons:
+        keyboard.row(*navigation_buttons)
+
+    return keyboard.as_markup()
 
 async def alert_menu():
     keyboard = InlineKeyboardBuilder()
