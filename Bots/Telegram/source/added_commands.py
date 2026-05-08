@@ -6,11 +6,11 @@ from aiogram.types import Message, CallbackQuery
 
 from source.stations import WorkStates, ConnectDevice
 from database.utils import get_sensor_settings
+from database.models import Sensor
 import source.keyboards as kb
 import database.requests as rq
 
 router = Router()
-
 
 @router.message(Command("add"))
 async def add(message: Message, state: FSMContext):
@@ -19,12 +19,27 @@ async def add(message: Message, state: FSMContext):
     hub_id = data.get('hub_id')
     print(f"current state: {current_state}, hub_id: {hub_id}")
 
-    if current_state == WorkStates.ready.state:
-        await state.set_state(ConnectDevice.wait_device_type)
-        await message.answer("Что именно вы хотите подключить?", reply_markup=await kb.choose_device_type())
-    else:
+    if current_state == WorkStates.start.state:
         await state.set_state(ConnectDevice.wait_hub_id)
         await message.answer("Отправьте текстом в чат серийный номер вашего хаба. Он находится внутри коробки. Будьте внимательны при вводе серийного номера.")
+        return
+    elif current_state == WorkStates.ready.state:
+        await state.set_state(ConnectDevice.wait_device_type)
+    else:
+        hubs = await rq.get_hubs(message.from_user.id)
+        if len(hubs) == 0:
+            await message.answer("""
+Похоже, произошла какая-то ошибка. Бот потерял сериный номер вашего хаба. 
+Не бескойтесь! Все данные сохранены. Но чтобы их найти, пожалуйста, введите заново серийный номер вашего хаба:
+""")
+            await state.set_state(ConnectDevice.wait_hub_id)
+            return
+        else:
+            hub_id = hubs[1]
+            await state.set_state(ConnectDevice.wait_device_type)
+
+    await message.answer("Что именно вы хотите подключить?", reply_markup=await kb.choose_device_type())
+    await state.update_data(hub_id=hub_id)
 
 
 @router.callback_query(ConnectDevice.wait_device_type, F.data.in_(["sensor", "hub"]))
@@ -91,24 +106,9 @@ async def got_sensor_id(message: Message, state: FSMContext):
 async def got_location(message: Message, state: FSMContext):
     if len(message.text) < 65:
         await state.update_data(location=message.text)
-        await state.set_state(ConnectDevice.wait_water_threshold)
-        await message.answer("[временно] Введите порог срабатывания по воде (только число):")
-    else:
-        await message.answer("Слишком длинное название! Попробуйте ещё раз")
-
-
-@router.message(ConnectDevice.wait_water_threshold, F.text.regexp(r'^\d+(\.\d+)?$'))
-async def got_water_threshold(message: Message, state: FSMContext):
-    await state.update_data(water_threshold=int(message.text))
-    await state.set_state(ConnectDevice.wait_battery_threshold)
-    await message.answer("Выберите порог, при котором будете получать уведомление о низком заряде:",
-                         reply_markup=await kb.battery_threshold_menu())
-
-
-@router.message(ConnectDevice.wait_water_threshold)
-async def invalid_water_threshold(message: Message):
-    await message.answer("Пожалуйста, введите число (можно с десятичной точкой).")
-
+        await state.set_state(ConnectDevice.wait_battery_threshold)
+        await message.answer("Выберите порог, при котором будете получать уведомление о низком заряде:",
+                             reply_markup=await kb.battery_threshold_menu())
 
 @router.callback_query(ConnectDevice.wait_battery_threshold, F.data.in_(["half", "fifth_part"]))
 async def got_battery_threshold(callback: CallbackQuery, state: FSMContext):
@@ -120,7 +120,6 @@ async def got_battery_threshold(callback: CallbackQuery, state: FSMContext):
         "Выберите тип уведомлений:",
         reply_markup=await kb.alert_menu()
     )
-
 
 @router.message(ConnectDevice.wait_battery_threshold)
 async def invalid_battery_threshold(message: Message):
@@ -146,7 +145,16 @@ async def got_shutoff(callback: CallbackQuery, state: FSMContext):
     await state.update_data(shutoff=convert[callback.data])
     data = await state.get_data()
 
-    msg = await get_sensor_settings(data.get('hub_id'), data.get('sensor_id'))
+    temp_sensor = Sensor(
+        hub_id=data.get('hub_id'),
+        id=data.get('sensor_id'),
+        location=data.get('location'),
+        battery_threshold=data.get('battery_threshold'),
+        notifications=data.get('notifications'),
+        shutoff=data.get('shutoff')
+    )
+
+    msg = await get_sensor_settings(sensor=temp_sensor)
     await callback.message.edit_text(msg, parse_mode=ParseMode.HTML)
     await callback.message.answer("Подтвердите применение настроек:", reply_markup=await kb.confirm_menu())
 
