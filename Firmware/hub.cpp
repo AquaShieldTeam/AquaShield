@@ -420,6 +420,12 @@ void _init()
 #ifdef DEBUG_HUB
     Serial.printf("[-%s] %lu: Entering %s\n", __func__, millis(), __func__);
 #endif
+
+    Preferences ps;  
+    prefs.clear();
+    ps.begin("ss", false); ps.clear(); ps.end();
+    ps.begin("rs", false); ps.clear(); ps.end();
+
     WiFiManager o_wm;
     WiFiManagerParameter o_ip("server", "IP сервера", ip.c_str(), 40);
     o_wm.addParameter(&o_ip);
@@ -622,7 +628,8 @@ void _get_cfg()
     {
         if (httpCode == HTTP_CODE_OK)
         {
-            
+            _rfrsh_snsrs(http);
+            _rfrsh_rlys(http);
         }
         else
         {
@@ -639,7 +646,7 @@ void _get_cfg()
 #endif
 }
 
-void _rfrsh_snsrs(HTTPClient http)
+void _rfrsh_snsrs(HTTPClient& http)
 {
     String payload = http.getString();
 
@@ -694,7 +701,7 @@ void _rfrsh_snsrs(HTTPClient http)
     snsrs_save();
 }
 
-void _rfrsh_rlys(HTTPClient http)
+void _rfrsh_rlys(HTTPClient& http)
 {
     String payload = http.getString();
 
@@ -732,7 +739,7 @@ void _rfrsh_rlys(HTTPClient http)
 #ifdef DEBUG_HUB
         Serial.printf("[-%s-] %lu: Updating relay %u config\n", __func__, millis(), id);
 #endif
-        snsrs[idx].mode_c = cur_snsr_cfg["gid"].as<int>();
+        snsrs[idx].mode_c = cur_rly_cfg["gid"].as<int>();
         
         cnt++;
         Serial.printf("Обновлено реле ID %d",id);                
@@ -948,10 +955,10 @@ void _handle_snsr_msg(int idx)
 #endif
             for (int i = 0; i < RELAY_MAX; i++)
             {
-                if (rlys[i] != 0)
+                if (rlys[i].act != 0)
                 {
-                    _send_rly_cmd(rlys[i], true);
-                    _notify_rly(rlys[i], false);
+                    _send_rly_cmd(rlys[i].id, true);
+                    _notify_rly(rlys[i].id, false);
                 }
             }
         }
@@ -983,10 +990,10 @@ void _handle_snsr_msg(int idx)
 #endif
             for (int i = 0; i < RELAY_MAX; i++)
             {
-                if (rlys[i] != 0)
+                if (rlys[i].act != 0)
                 {
-                    _send_rly_cmd(rlys[i], false);
-                    _notify_rly(rlys[i], true);
+                    _send_rly_cmd(rlys[i].id, false);
+                    _notify_rly(rlys[i].id, true);
                 }
             }
         }
