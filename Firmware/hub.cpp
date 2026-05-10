@@ -1,4 +1,4 @@
-#define DEBUG_HUB   // раскомментировать для отладочного вывода
+#define DEBUG_HUB
 
 #include <cstdint>
 #include <WiFi.h>
@@ -63,7 +63,7 @@ struct st_snsr_cfg_msg
 struct st_rly_msg
 {
 	uint16_t  rid;
-    uint8_t   data;      // 1 = закрыть, 0 = открыть
+    uint8_t   data;
     uint8_t   crc;
 };
 
@@ -404,8 +404,6 @@ void setup()
     _wifi_con();      
     
     server.on("/", handleRoot);
-    server.on("/alert", handleAlert);
-    server.on("/relay", handleRelay);
     server.on("/simulate", handleSimulate);
     server.onNotFound(handleNotFound);
     server.begin();
@@ -624,68 +622,124 @@ void _get_cfg()
     {
         if (httpCode == HTTP_CODE_OK)
         {
-            String payload = http.getString();
-            Serial.println("Получен ответ: " + payload);
-
-            DynamicJsonDocument doc(2048);
-            DeserializationError error = deserializeJson(doc, payload);
-            if (error)
-            {
-                Serial.print("Ошибка парсинга JSON: ");
-                Serial.println(error.c_str());
-                http.end();
-                return;
-            }
-
-            JsonArray json_arr = doc["sensors"].as<JsonArray>();
-            if (json_arr.isNull())
-            {
-                Serial.println("Ошибка: в JSON нет массива sensors");
-                http.end();
-                return;
-            }
-
-            int updatedCount = 0;
-            for (JsonObject cur_snsr_cfg : json_arr)
-            {
-                int id = cur_snsr_cfg["id"].as<int>();
-                int idx = snsrs_find(id);
-
-                if (idx == SENSOR_MAX) 
-                {
-                    idx = snsrs_find_free();
-#ifdef DEBUG_HUB
-                Serial.printf("[-%s-] %lu: Created sensor %u\n", __func__, millis(), id);
-#endif
-                }
-
-#ifdef DEBUG_HUB
-                Serial.printf("[-%s-] %lu: Updating sensor %u config\n", __func__, millis(), id);
-#endif
-                snsrs[idx].mode_c = cur_snsr_cfg["work_mode"].as<int>();
-                snsrs[idx].btr_l = cur_snsr_cfg["battery_threshold"].as<int>();
-                snsrs[idx].wtr_l = cur_snsr_cfg["water_threshold"].as<int>();
-                snsrs[idx].mode_a = cur_snsr_cfg["alert_mode"].as<int>();
-                snsrs[idx].blck = cur_snsr_cfg["block_water"].as<bool>();
-
-                
-                updatedCount++;
-                Serial.printf("Обновлён датчик ID %d: wtr_l=%d, btr_l=%d, mode_c=%d, mode_a=%d\n",
-                                id, snsrs[idx].wtr_l, snsrs[idx].btr_l,
-                                snsrs[idx].mode_c, snsrs[idx].mode_a);                
-            }
-            Serial.printf("Обновлено %d датчиков\n", updatedCount);
-            snsrs_save();
-        } else {
-            Serial.printf("Ошибка HTTP: %d\n", httpCode);
+            
         }
-    } else {
-        Serial.printf("Ошибка соединения: %s\n", http.errorToString(httpCode).c_str());
+        else
+        {
+            Serial.printf("http er: %d\n", httpCode);
+        }
+    }
+    else
+    {
+        Serial.printf("con er: %s\n", http.errorToString(httpCode).c_str());
     }
     http.end();
 #ifdef DEBUG_HUB
     Serial.printf("[-%s] %lu: Done %s\n", __func__, millis(), __func__);
 #endif
+}
+
+void _rfrsh_snsrs(HTTPClient http)
+{
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, payload);
+    if (error)
+    {
+        Serial.println(error.c_str());
+        http.end();
+        return;
+    }
+
+    JsonArray json_arr = doc["sensors"].as<JsonArray>();
+    if (json_arr.isNull())
+    {
+        Serial.println("no sensors in JSON");
+        http.end();
+        return;
+    }
+
+    int cnt = 0;
+    for (JsonObject cur_snsr_cfg : json_arr)
+    {
+        int id = cur_snsr_cfg["id"].as<int>();
+        int idx = snsrs_find(id);
+
+        if (idx == SENSOR_MAX) 
+        {
+            idx = snsrs_find_free();
+#ifdef DEBUG_HUB
+        Serial.printf("[-%s-] %lu: Created sensor %u\n", __func__, millis(), id);
+#endif
+        }
+
+#ifdef DEBUG_HUB
+        Serial.printf("[-%s-] %lu: Updating sensor %u config\n", __func__, millis(), id);
+#endif
+        snsrs[idx].mode_c = cur_snsr_cfg["work_mode"].as<int>();
+        snsrs[idx].btr_l = cur_snsr_cfg["battery_threshold"].as<int>();
+        snsrs[idx].wtr_l = cur_snsr_cfg["water_threshold"].as<int>();
+        snsrs[idx].mode_a = cur_snsr_cfg["alert_mode"].as<int>();
+        snsrs[idx].blck = cur_snsr_cfg["block_water"].as<bool>();
+
+        
+        cnt++;
+        Serial.printf("Обновлён датчик ID %d: wtr_l=%d, btr_l=%d, mode_c=%d, mode_a=%d\n",
+                        id, snsrs[idx].wtr_l, snsrs[idx].btr_l,
+                        snsrs[idx].mode_c, snsrs[idx].mode_a);                
+    }
+
+    Serial.printf("Обновлено %d датчиков\n", cnt);
+    snsrs_save();
+}
+
+void _rfrsh_rlys(HTTPClient http)
+{
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, payload);
+    if (error)
+    {
+        Serial.println(error.c_str());
+        http.end();
+        return;
+    }
+
+    JsonArray json_arr = doc["relays"].as<JsonArray>();
+    if (json_arr.isNull())
+    {
+        Serial.println("no relays in JSON");
+        http.end();
+        return;
+    }
+
+    int cnt = 0;
+    for (JsonObject cur_rly_cfg : json_arr)
+    {
+        int id = cur_rly_cfg["id"].as<int>();
+        int idx = rlys_find(id);
+
+        if (idx == RELAY_MAX) 
+        {
+            idx = rlys_find_free();
+#ifdef DEBUG_HUB
+        Serial.printf("[-%s-] %lu: Created relay %u\n", __func__, millis(), id);
+#endif
+        }
+
+#ifdef DEBUG_HUB
+        Serial.printf("[-%s-] %lu: Updating relay %u config\n", __func__, millis(), id);
+#endif
+        snsrs[idx].mode_c = cur_snsr_cfg["gid"].as<int>();
+        
+        cnt++;
+        Serial.printf("Обновлено реле ID %d",id);                
+    }
+    
+    Serial.printf("Обновлено %d реле\n", cnt);
+    snsrs_save();
 }
 
 void _send_msg(uint16_t sid, uint16_t data, uint8_t num)
@@ -816,20 +870,37 @@ void _btn_lgc()
 #endif
 }
 
+bool yel_on = false;
+unsigned long lst_yel_led_t = 0;
+const unsigned long yel_led_dly = 500;
+
 void _updt_leds()
 {
-#ifdef DEBUG_HUB
-    // Serial.printf("[-%s] %lu: Entering %s\n", __func__, millis(), __func__);
-#endif
-    digitalWrite(p_led_grn, HIGH);      // всегда горит зелёный (питание)
-    digitalWrite(p_led_red, alrts > 0 ? HIGH : LOW);
+    digitalWrite(p_led_grn, HIGH);
 
-    bool no_wifi = (WiFi.status() != WL_CONNECTED);
-    bool no_server = (ip.length() > 0 && !srvr_on);
-    digitalWrite(p_led_yel, (no_wifi || no_server) ? HIGH : LOW);
-#ifdef DEBUG_HUB
-    // Serial.printf("[-%s] %lu: Done %s (alerts=%d, wifi=%d, server=%d)\n", __func__, millis(), __func__, alrts, !no_wifi, !no_server);
-#endif
+    digitalWrite(p_led_red, (alrts > 0) ? HIGH : LOW);
+
+    bool no_wifi   = (WiFi.status() != WL_CONNECTED);
+    bool uncfgd = (ip.length() == 0);
+    bool no_server = (!uncfgd && !srvr_on);
+
+    if (uncfgd || no_wifi) 
+    {
+        yel_on = true;
+        lst_yel_led_t = millis();
+    }
+    else if (no_server)
+    {
+        if (millis() - lst_yel_led_t > yel_led_dly)
+        {
+            yel_on = !yel_on;
+            lst_yel_led_t = millis();
+        }
+    }
+    else        
+        yel_on = false;
+
+    digitalWrite(p_led_yel, yel_on ? HIGH : LOW);
 }
 
 bool _ping()
@@ -938,7 +1009,7 @@ void _handle_snsr_msg(int idx)
         Serial.printf("[-%s-] %lu: BTR OK %u\n", __func__, millis(), rmsg.stm.id);
 #endif
         snsrs[idx].btr = false;
-        _alert_btr(rmsg.stm.id, true);   // ??? Note: original code sends "true" even on RES, might be a bug
+        _alert_btr(rmsg.stm.id, false);
         alrts -= 1;
 #ifdef DEBUG_HUB
         Serial.printf("[-%s-] %lu: alerts--: %d\n", __func__, millis(), alrts);
@@ -996,57 +1067,10 @@ void handleRoot() {
 #endif
 }
 
-void handleAlert() {
-#ifdef DEBUG_HUB
-  Serial.printf("[%s] %lu: Entering ALERT web request\n", __func__, millis());
-#endif
-  if (server.hasArg("message")) {
-    String msg = server.arg("message");
-    Serial.printf("[web] Получено сообщение: %s\n", msg.c_str());
-    digitalWrite(p_led_red, HIGH);
-    delay(2000);
-    digitalWrite(p_led_red, LOW);
-    server.send(200, "text/plain", "Тревога обработана: " + msg);
-#ifdef DEBUG_HUB
-    Serial.printf("[%s] %lu: Alert processed\n", __func__, millis());
-#endif
-  } else {
-    server.send(400, "text/plain", "Не указан параметр message");
-#ifdef DEBUG_HUB
-    Serial.printf("[%s] %lu: Missing message parameter\n", __func__, millis());
-#endif
-  }
-}
-
-void handleRelay() {
-#ifdef DEBUG_HUB
-  Serial.printf("[%s] %lu: Entering RELAY web request\n", __func__, millis());
-#endif
-  if (server.hasArg("action") && server.hasArg("id")) {
-    String action = server.arg("action");
-    int rid = server.arg("id").toInt();
-    if (action == "close") {
-      _send_rly_cmd(rid, true);
-      server.send(200, "text/plain", "Реле закрыто");
-    } else if (action == "open") {
-      _send_rly_cmd(rid, false);
-      server.send(200, "text/plain", "Реле открыто");
-    } else {
-      server.send(400, "text/plain", "Неверное действие");
-    }
-  } else {
-    server.send(400, "text/plain", "Укажите action=close/open и id=...");
-  }
-#ifdef DEBUG_HUB
-  Serial.printf("[%s] %lu: Relay command processed\n", __func__, millis());
-#endif
-}
-
 void handleSimulate() {
 #ifdef DEBUG_SENSOR
     Serial.printf("[-%s] %lu: Simulation request received\n", __func__, millis());
 #endif
-    // Проверяем наличие параметров sensor_id и event
     if (!server.hasArg("sensor_id") || !server.hasArg("event")) {
         server.send(400, "text/plain", "Missing sensor_id or event");
         return;
@@ -1063,11 +1087,10 @@ void handleSimulate() {
         return;
     }
 
-    // Формируем виртуальное сообщение
     msg_unit_s sim_msg;
     sim_msg.raw = 0;
     sim_msg.stm.id = sid;
-    sim_msg.stm.type = REQ;        // по умолчанию REQ
+    sim_msg.stm.type = REQ;
     sim_msg.stm._init = 0;
     sim_msg.stm.wtr = 0;
     sim_msg.stm.btr = 0;
@@ -1075,8 +1098,8 @@ void handleSimulate() {
     if (event == "leak") {
         sim_msg.stm.wtr = 1;
     } else if (event == "dry") {
-        sim_msg.stm.type = RES;    // сброс тревоги
-        sim_msg.stm.wtr = 1;       // RES означает "протечки больше нет"
+        sim_msg.stm.type = RES;
+        sim_msg.stm.wtr = 1;
     } else if (event == "battery_low") {
         sim_msg.stm.btr = 1;
     } else if (event == "battery_normal") {
@@ -1100,15 +1123,12 @@ void handleSimulate() {
         return;
     }
 
-    // Сохраняем оригинальный rmsg и подменяем на эмулируемый
     msg_unit_s orig_rmsg = rmsg;
     rmsg = sim_msg;
 
-    // Вызываем штатную обработку (она использует глобальный rmsg)
     _handle_snsr_msg(idx);
     snsrs_save();
 
-    // Восстанавливаем оригинальное сообщение (на случай, если loop() уже обрабатывал что-то)
     rmsg = orig_rmsg;
 
     String response = "Simulated event '" + event + "' for sensor " + String(sid);
