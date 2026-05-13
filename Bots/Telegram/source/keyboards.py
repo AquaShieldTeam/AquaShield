@@ -94,6 +94,14 @@ async def overlap_menu():
     keyboard.add(InlineKeyboardButton(text="Нет", callback_data="overlap_off"))
     return keyboard.adjust(2).as_markup()
 
+async def water_threshold_menu():
+    keyboard = InlineKeyboardBuilder()
+    keyboard.add(InlineKeyboardButton(text="Низкая", callback_data="low"))
+    keyboard.add(InlineKeyboardButton(text="Средняя", callback_data="mid"))
+    keyboard.add(InlineKeyboardButton(text="Высокая", callback_data="high"))
+    keyboard.add(InlineKeyboardButton(text="Максимальная", callback_data="max"))
+    return keyboard.adjust(4).as_markup()
+
 async def battery_threshold_menu():
     keyboard = InlineKeyboardBuilder()
     keyboard.add(InlineKeyboardButton(text="20%", callback_data="fifth_part"))
