@@ -1,3 +1,8 @@
+#ifdef TEST_ARCH
+#include <WiFi.h>
+#include <HTTPClient.h>
+#endif
+
 #include "RCSwitch.h"
 #include <cstdint>
 
@@ -135,6 +140,14 @@ RTC_DATA_ATTR bool      low_btr             = false;
 // ============================ //
 
 
+#ifdef
+const char* ssid = "AQSH0000";
+const char* password = "letmein8";
+const char* hub_ip = "192.168.4.1";
+#endif
+
+
+
 void setup_pins();
 void _setup_rx();
 void _slp(uint16_t);
@@ -158,6 +171,18 @@ void setup()
 #endif
     int64_t start_time = millis();
     setup_pins();
+
+#ifdef TEST_ARCH
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  Serial.print("connectin to HUB");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\connected, IP: " + WiFi.localIP().toString());
+#endif
 
 #ifdef DEBUG_SENSOR
     _temp_time2 = millis();
@@ -618,6 +643,26 @@ void _send(bool _type, bool _init, bool _wtr, bool _btr)
     o_tx.disableTransmit();
     digitalWrite(p_tx_en, LOW);
 
+#ifdef TEST_ARCH
+    String url;
+    url = "http://" + String(hub_ip) + "/simulate/alert?id=" + 
+    c_sid + "&v=" + smsg.raw;
+    
+    HTTPClient http;
+    http.begin(url);
+    int code = http.GET();
+    if (code > 0)
+    {
+      String resp = http.getString();
+      Serial.print("responding: ");
+      Serial.println(resp);
+    } else {
+      Serial.println("Ошибка запроса: " + String(code));
+    }
+    http.end();
+}
+#endif
+
 #ifdef DEBUG_SENSOR        
     Serial.printf("[--_send] %lumcs: Done\n", micros());
 #endif
@@ -659,6 +704,28 @@ uint8_t _calc_crc(uint32_t _val)
 }
 
 void loop()
-{
+{  
+    #ifdef TEST_ARCH
+    _alarm_lgc();
 
+    if (digitalRead(p_init_btn) == HIGH)
+    {
+        bool _is_init = _chs_rcv_mode();
+        
+        if (_is_init)
+        {
+            _init();
+        }
+        else
+        {
+            _start_cfg();
+        }
+    }
+    else if (delta_time <= 0)
+    {
+        _start_cfg();
+    }
+
+    sleep(10);
+    #endif 
 }
